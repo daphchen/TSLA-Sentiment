@@ -1,0 +1,127 @@
+---
+title: "Comm188C Project"
+author: "Daphne Chen"
+date: "3/3/2021"
+output: pdf_document
+---
+
+```{r echo=T, message=F}
+# library packages
+library(tidyverse)
+library(ggplot2)
+library(xts)
+library(zoo)
+library(plotly)
+library(alphavantager)
+```
+
+```{r echo=T, message=F}
+tweets <- read_csv("tweet_sentiment.csv")
+tweets <- tweets[,-1]
+head(tweets)
+```
+```{r}
+tweets$Datetime <- lubridate::with_tz(tweets$Datetime, "America/New_York")
+tweets$Datetime <- trunc(tweets$Datetime, "mins")
+```
+
+```{r echo=T, message=F}
+# 15 min alpha vantage data
+tsla_av15 <- read_csv("TSLA_av15.csv")
+tsla_av15$date <- as.POSIXct(as.character(tsla_av15$date), tz="EST")
+
+# 30 min alpha vantage data
+tsla_av30 <- read_csv("TSLA_av30.csv")
+tsla_av30$date <- as.POSIXct(as.character(tsla_av30$date), tz="EST")
+
+# 60 min alpha vantage data
+tsla_av60 <- read_csv("TSLA_av60.csv")
+tsla_av60$date <- as.POSIXct(as.character(tsla_av60$date), tz="EST")
+
+```
+```{r}
+av_api_key("ZHT7SUS3392S4SA4")
+tsla_av30 <- av_get(symbol = "TSLA", av_fun = "TIME_SERIES_INTRADAY", interval = "30min", outputsize = "full")
+
+tsla_av60 <- av_get(symbol = "TSLA", av_fun = "TIME_SERIES_INTRADAY", interval = "60min", outputsize = "full")
+```
+```{r}
+tsla_av30$timestamp <- as.POSIXct(as.character(tsla_av30$timestamp), tz="EST")
+tsla_av60$timestamp <- as.POSIXct(as.character(tsla_av60$timestamp), tz="EST")
+```
+
+30 Minutes
+```{r}
+# 30 MINUTES INTERVALS
+tweets30 <- tweets %>%
+  mutate(Datetime = lubridate::floor_date(tweets$Datetime, unit="30 mins")) %>%
+  #mutate(created_at = lubridate::round_date(tsla_sent$created_at, "15 minutes")) %>%
+  inner_join(tsla_av30, by=c("Datetime"="timestamp"))
+```
+```{r}
+tweets30 %>%
+  group_by(sentiment) %>%
+  summarize(mean(open, na.rm=T), mean(high, na.rm=T), mean(low, na.rm=T), mean(close, na.rm=T))
+```
+```{r}
+my.model1_low <- lm(low~sentiment, data=tweets30)
+my.model1_high <- lm(high~sentiment, data=tweets30)
+my.model1_close <- lm(close~sentiment, data=tweets30)
+
+summary(my.model1_low)$coef
+summary(my.model1_high)$coef
+summary(my.model1_close)$coef
+```
+```{r}
+f1 <- tweets30 %>%
+  ggplot(aes(x=Datetime, colour=sentiment)) +
+  geom_freqpoly()
+f1
+
+p2 <- tsla_av30 %>% gather("value", "price", 3:4) %>%
+  ggplot(., aes(x=timestamp, y=price, colour=value)) +
+    geom_line() +
+    #geom_line(aes(x=timestamp, y=low), color="pink") +
+    #labs(color="Values") +
+    ylab("TSLA stock price ($) 60 Mins")
+p2
+```
+
+
+60 Minutes
+```{r}
+# 60 MINUTES INTERVALS
+tweets60 <- tweets %>%
+  mutate(Datetime = lubridate::floor_date(tweets$Datetime, unit="60 mins")) %>%
+  #mutate(created_at = lubridate::round_date(tsla_sent$created_at, "15 minutes")) %>%
+  inner_join(tsla_av60, by=c("Datetime"="timestamp"))
+```
+```{r}
+tweets60 %>%
+  group_by(sentiment) %>%
+  summarize(mean(open, na.rm=T), mean(high, na.rm=T), mean(low, na.rm=T), mean(close, na.rm=T))
+```
+```{r}
+my.model2_low <- lm(low~sentiment, data=tweets60)
+my.model2_high <- lm(high~sentiment, data=tweets60)
+my.model2_close <- lm(close~sentiment, data=tweets60)
+
+summary(my.model2_low)$coef
+summary(my.model2_high)$coef
+summary(my.model2_close)$coef
+```
+```{r}
+f2 <- tweets60 %>%
+  ggplot(aes(x=Datetime, colour=sentiment)) +
+  geom_freqpoly()
+f2
+
+p2 <- tsla_av60 %>% gather("value", "price", 3:4) %>%
+  ggplot(., aes(x=timestamp, y=price, colour=value)) +
+    geom_line() +
+    #geom_line(aes(x=timestamp, y=low), color="pink") +
+    #labs(color="Values") +
+    ylab("TSLA stock price ($) 60 Mins")
+p2
+```
+
